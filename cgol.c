@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <unistd.h>
 #include <wchar.h>
 #include <locale.h>
 #include <ncurses.h>
@@ -37,21 +38,25 @@ struct win_dim {
 	char *form_type;
 };
 
-
+typedef int SCR_STATE;
+/* To be initialized as array and hold corresponding screen values.
+ * Simulation will change values in these NxN arrays
+ * and will push to window
+ */
 
 void init(void);
 /* initialize ncurses */
 
-void terminate(WINDOW*);
+void terminate(WINDOW *, SCR_STATE *);
 /* terminate ncurses, free allocated memory, clear screen, cleanup */
 
-void create_window(WINDOW*);
+SCR_STATE* create_window(WINDOW *);
 /* create initial ncurses window.
  * todo: dynamically add upto 6 windows
  * recalculate a constant window dimension
  */  
 
-void update_windows(WINDOW **, int);
+void update_window(WINDOW *, SCR_STATE *);
 /* Evolution will be created in this function
  * nested loops will update grid
  * evolutions are determined by generations arg
@@ -73,20 +78,26 @@ int main(int argc, char *argv[])
 		}
 
 	init();	
+	
+	WINDOW *win;
+	SCR_STATE *scr1;
 
-	WINDOW* win;
-
-	create_window(win);
-
-		getch();
-	terminate(win);
+	scr1 = create_window(win);
+	/*
+	while (generations--) {
+		update_window(win, scr1);
+		sleep(1);	
+	}
+	*/
+	getch();
+	terminate(win, scr1);
 	return 0;
 }
 
 #define G_RATIO ((1 + sqrt(5))/2)
 #define FOR_(d, len) for (int d = 0; d < len; d++)
 
-void create_window(WINDOW *win)
+SCR_STATE* create_window(WINDOW *win)
 {
 	int height = LINES / G_RATIO;
 	int width = COLS / G_RATIO;
@@ -96,16 +107,26 @@ void create_window(WINDOW *win)
 	win = newwin(height, width, curY, curX);
 	/* 0x25A2 is a white boardered square */
 	wchar_t middot = 0x00B7;	 	
+	SCR_STATE *scr1 = malloc(sizeof(scr1) * height * width);
 
-	FOR_(y, height)
-		FOR_(x, width)
+	FOR_(y, height) {
+		FOR_(x, width) {
 			mvwprintw(win, y, x,"%lc", middot);
-	
+			*(scr1 + y*width + x) = middot;
+		}
+	}
+
 	box(win, 0, 0);
 	wrefresh(win);
 
+	return scr1;
 }
-
+/*
+void update_window(WINDOW* win, SCR_STATE)
+{
+	
+}
+*/
 /* initialize ncurses, colors and first window */
 void init()
 {
@@ -123,10 +144,11 @@ void init()
 	/* create initial subwindow */	
 }
 
-void terminate(WINDOW* win)
+void terminate(WINDOW *win, SCR_STATE *scr1)
 {
 	clear();
-	free(win);
+	delwin(win);
+	free(scr1);
 	refresh();
 	endwin();
 }
